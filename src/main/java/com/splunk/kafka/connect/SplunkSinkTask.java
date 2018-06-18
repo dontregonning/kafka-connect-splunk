@@ -20,6 +20,8 @@ import com.splunk.kafka.connect.VersionUtils;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.RetriableException;
+import org.apache.kafka.connect.header.Header;
+import org.apache.kafka.connect.header.Headers;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 
@@ -267,6 +269,24 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
             event.setSource(metas.get(SplunkSinkConnectorConfig.SOURCE));
             event.addFields(connectorConfig.enrichments);
         }
+
+/*
+        Headers headers = record.headers();
+        if(!headers.isEmpty()) {
+            if(headers.lastWithName("splunk_index") != null) {
+                event.setIndex(headers.lastWithName("splunk_index").value().toString());
+            }
+            if(headers.lastWithName("splunk_host") != null) {
+                event.setHost(headers.lastWithName("splunk_host").value().toString());
+            }
+            if(headers.lastWithName("splunk_source") != null) {
+                event.setSource(headers.lastWithName("splunk_source").value().toString());
+            }
+            if(headers.lastWithName("splunk_sourcetype") != null) {
+                event.setSourcetype(headers.lastWithName("splunk_source").value().toString());
+            }
+        }
+*/
 
         if (connectorConfig.trackData) {
             // for data loss, latency tracking

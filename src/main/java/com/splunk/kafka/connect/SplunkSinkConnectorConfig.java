@@ -21,6 +21,7 @@ import org.apache.kafka.connect.sink.SinkConnector;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.commons.lang3.StringUtils;
+import org.omg.PortableInterceptor.ServerRequestInfo;
 
 import java.util.*;
 
@@ -36,6 +37,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     static final String INDEX_CONF = "splunk.indexes";
     static final String SOURCE_CONF = "splunk.sources";
     static final String SOURCETYPE_CONF = "splunk.sourcetypes";
+    static final String HEADER_SUPPORT_CONF = "splunk.header.support";
     static final String TOTAL_HEC_CHANNEL_CONF = "splunk.hec.total.channels";
     static final String MAX_HTTP_CONNECTION_PER_CHANNEL_CONF = "splunk.hec.max.http.connection.per.channel";
     static final String MAX_BATCH_SIZE_CONF = "splunk.hec.max.batch.size"; // record count
@@ -63,6 +65,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     static final String SSL_TRUSTSTORE_PATH_CONF = "splunk.hec.ssl.trust.store.path";
     static final String SSL_TRUSTSTORE_PASSWORD_CONF = "splunk.hec.ssl.trust.store.password";
 
+
     // Kafka configuration description strings
     // Required Parameters
     static final String URI_DOC = "Splunk HEC URIs. Either a list of FQDNs or IPs of all Splunk indexers, separated "
@@ -79,6 +82,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     static final String SOURCETYPE_DOC = "Splunk event sourcetype metadata for Kafka topic data. The same configuration "
             + "rules as indexes can be applied here. If left unconfigured, the default source"
             + " binds to the HEC token. By default, this setting is empty";
+    static final String HEADER_SUPPORT_DOC = "Setting will enable Kafka Record headers to be used for meta data override";
     static final String TOTAL_HEC_CHANNEL_DOC = "Total HEC Channels used to post events to Splunk. When enabling HEC ACK, "
             + "setting to the same or 2X number of indexers is generally good.";
     static final String MAX_HTTP_CONNECTION_PER_CHANNEL_DOC = "Max HTTP connections pooled for one HEC Channel "
@@ -148,6 +152,8 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     final String sourcetypes;
     final String sources;
 
+    final boolean headerSupport;
+
     final int totalHecChannels;
     final int maxHttpConnPerChannel;
     final int maxBatchSize;
@@ -182,6 +188,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
         indexes = getString(INDEX_CONF);
         sourcetypes = getString(SOURCETYPE_CONF);
         sources = getString(SOURCE_CONF);
+        headerSupport = getBoolean(HEADER_SUPPORT_CONF);
         httpKeepAlive = getBoolean(HTTP_KEEPALIVE_CONF);
         validateCertificates = getBoolean(SSL_VALIDATE_CERTIFICATES_CONF);
         trustStorePath = getString(SSL_TRUSTSTORE_PATH_CONF);
@@ -213,6 +220,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
             .define(INDEX_CONF, ConfigDef.Type.STRING, "", ConfigDef.Importance.MEDIUM, INDEX_DOC)
             .define(SOURCETYPE_CONF, ConfigDef.Type.STRING, "", ConfigDef.Importance.MEDIUM, SOURCETYPE_DOC)
             .define(SOURCE_CONF, ConfigDef.Type.STRING, "", ConfigDef.Importance.MEDIUM, SOURCE_DOC)
+            .define(HEADER_SUPPORT_CONF, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.MEDIUM, HEADER_SUPPORT_DOC)
             .define(HTTP_KEEPALIVE_CONF, ConfigDef.Type.BOOLEAN, true, ConfigDef.Importance.MEDIUM, HTTP_KEEPALIVE_DOC)
             .define(SSL_VALIDATE_CERTIFICATES_CONF, ConfigDef.Type.BOOLEAN, true, ConfigDef.Importance.MEDIUM, SSL_VALIDATE_CERTIFICATES_DOC)
             .define(SSL_TRUSTSTORE_PATH_CONF, ConfigDef.Type.STRING, "", ConfigDef.Importance.HIGH, SSL_TRUSTSTORE_PATH_DOC)
@@ -266,6 +274,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
                 + "indexes:" + indexes + ", "
                 + "sourcetypes:" + sourcetypes + ", "
                 + "sources:" + sources + ", "
+                + "headerSupport:" + headerSupport + ", "
                 + "httpKeepAlive:" + httpKeepAlive + ", "
                 + "validateCertificates:" + validateCertificates + ", "
                 + "trustStorePath:" + trustStorePath + ", "
