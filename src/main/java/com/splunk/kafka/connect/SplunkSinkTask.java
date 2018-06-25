@@ -141,14 +141,42 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
     }
 
     private void handleRaw(final Collection<SinkRecord> records) {
-        if (connectorConfig.hasMetaDataConfigured()) {
+        if(connectorConfig.headerSupport) {
+            boolean first_record = true;
+            List<SinkRecord> likeRecords = new ArrayList<>();
+            KafkaHeaderUtility kafkaHeaderUtility = null;
+
+            for(SinkRecord record : records) {
+                if(first_record) {
+                    likeRecords.add(record);
+                    kafkaHeaderUtility = new KafkaHeaderUtility(record);
+                    first_record = false;
+                    continue;
+                }
+
+                if(kafkaHeaderUtility.compareRecordHeaders(record)) {
+                    likeRecords.add(record);
+                }
+                else {
+                    EventBatch batch = createRawHeaderEventBatch(kafkaHeaderUtility);
+                    sendEvents(likeRecords, batch);
+                    likeRecords.clear();
+                    likeRecords.add(record);
+                    kafkaHeaderUtility = new KafkaHeaderUtility(record);
+                }
+            }
+            EventBatch batch = createRawHeaderEventBatch(kafkaHeaderUtility);
+            sendEvents(likeRecords, batch);
+        }
+        else if (connectorConfig.hasMetaDataConfigured()) {
             // when setup metadata - index, source, sourcetype, we need partition records for /raw
             Map<TopicPartition, Collection<SinkRecord>> partitionedRecords = partitionRecords(records);
             for (Map.Entry<TopicPartition, Collection<SinkRecord>> entry: partitionedRecords.entrySet()) {
                 EventBatch batch = createRawEventBatch(entry.getKey());
                 sendEvents(entry.getValue(), batch);
             }
-        } else {
+        }
+        else {
             EventBatch batch = createRawEventBatch(null);
             sendEvents(records, batch);
         }
@@ -196,6 +224,15 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
         }
     }
 
+    private EventBatch createRawHeaderEventBatch(KafkaHeaderUtility kafkaHeaderUtility) {
+        return RawEventBatch.factory()
+                .setIndex(kafkaHeaderUtility.getSplunkHeaderIndex())
+                .setSourcetype(kafkaHeaderUtility.getSplunkHeaderSourcetype())
+                .setSource(kafkaHeaderUtility.getSplunkHeaderSource())
+                .setHost(kafkaHeaderUtility.getSplunkHeaderHost())
+                .build();
+
+    }
     // setup metadata on RawEventBatch
     private EventBatch createRawEventBatch(final TopicPartition tp) {
         if (tp == null) {
@@ -252,6 +289,7 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
         if (connectorConfig.raw) {
             RawEvent event = new RawEvent(record.value(), record);
             event.setLineBreaker(connectorConfig.lineBreaker);
+            if(connectorConfig.headerSupport) { event = (RawEvent)addHeadersToHecEvent(event, record); }
             return event;
         }
 
@@ -270,23 +308,9 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
             event.addFields(connectorConfig.enrichments);
         }
 
-/*
-        Headers headers = record.headers();
-        if(!headers.isEmpty()) {
-            if(headers.lastWithName("splunk_index") != null) {
-                event.setIndex(headers.lastWithName("splunk_index").value().toString());
-            }
-            if(headers.lastWithName("splunk_host") != null) {
-                event.setHost(headers.lastWithName("splunk_host").value().toString());
-            }
-            if(headers.lastWithName("splunk_source") != null) {
-                event.setSource(headers.lastWithName("splunk_source").value().toString());
-            }
-            if(headers.lastWithName("splunk_sourcetype") != null) {
-                event.setSourcetype(headers.lastWithName("splunk_source").value().toString());
-            }
+        if(connectorConfig.headerSupport) {
+            addHeadersToHecEvent(event, record);
         }
-*/
 
         if (connectorConfig.trackData) {
             // for data loss, latency tracking
@@ -300,6 +324,29 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
 
         event.validate();
 
+        return event;
+    }
+
+    private Event addHeadersToHecEvent(Event event, SinkRecord record) {
+        Headers headers = record.headers();
+        if (!headers.isEmpty()) {
+            if (headers.lastWithName("splunk_index") != null) {
+                log.debug("splunk_index header detected, value is: " + headers.lastWithName("splunk_index").value().toString());
+                event.setIndex(headers.lastWithName("splunk_index").value().toString());
+            }
+            if (headers.lastWithName("splunk_host") != null) {
+                log.debug("splunk_host header detected, value is: " + headers.lastWithName("splunk_host").value().toString());
+                event.setHost(headers.lastWithName("splunk_host").value().toString());
+            }
+            if (headers.lastWithName("splunk_source") != null) {
+                log.debug("splunk_source header detected, value is: " + headers.lastWithName("splunk_source").value().toString());
+                event.setSource(headers.lastWithName("splunk_source").value().toString());
+            }
+            if (headers.lastWithName("splunk_sourcetype") != null) {
+                log.debug("splunk_sourcetype header detected, value is: " + headers.lastWithName("splunk_sourcetype").value().toString());
+                event.setSourcetype(headers.lastWithName("splunk_sourcetype").value().toString());
+            }
+        }
         return event;
     }
 

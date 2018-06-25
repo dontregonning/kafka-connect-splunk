@@ -150,10 +150,7 @@ public final class JsonEvent extends Event {
         }
 
         try {
-            log.info("inside get_bytes");
             bytes = jsonMapper.writeValueAsBytes(this);
-            log.info(bytes.toString());
-
         } catch (Exception ex) {
             log.error("Invalid json event", ex);
             throw new HecException("Failed to json marshal the event", ex);
