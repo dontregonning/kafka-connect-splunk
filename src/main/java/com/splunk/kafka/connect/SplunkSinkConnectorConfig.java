@@ -53,6 +53,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     static final String MAX_OUTSTANDING_EVENTS_CONF = "splunk.hec.max.outstanding.events";
     static final String MAX_RETRIES_CONF = "splunk.hec.max.retries";
     static final String TRACK_DATA_CONF = "splunk.hec.track.data";
+    static final String HEC_EVENT_FORMATTED_CONF = "splunk.hec.json.event.formatted";
 
      // Kafka configuration description strings
     static final String TOKEN_DOC = "The authorization token to use when writing data to splunk.";
@@ -84,6 +85,8 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     static final String MAX_OUTSTANDING_EVENTS_DOC = "Number of outstanding events which are not ACKed kept in memory";
     static final String MAX_RETRIES_DOC = "Number of retries for failed batches before giving up";
     static final String TRACK_DATA_DOC = "Track data loss, latency or not. Is only applicable to splunk.hec.raw=false case";
+    static final String HEC_EVENT_FORMATTED_DOC = "Ensures events already formatted correctly for HEC are parsed "
+            + "correctly in the connector, before being sent to Splunk";
 
     final String splunkToken;
     final String splunkURI;
@@ -108,6 +111,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
     final int numberOfThreads;
     final int maxOutstandingEvents;
     final int maxRetries;
+    final boolean hecEventFormatted;
     final String lineBreaker;
     final Map<String, String> enrichments;
 
@@ -140,6 +144,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
         lineBreaker = getString(LINE_BREAKER_CONF);
         maxOutstandingEvents = getInt(MAX_OUTSTANDING_EVENTS_CONF);
         maxRetries = getInt(MAX_RETRIES_CONF);
+        hecEventFormatted = getBoolean(HEC_EVENT_FORMATTED_CONF);
         topicMetas = initMetaMap(taskConfig);
     }
 
@@ -169,7 +174,9 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
             .define(LINE_BREAKER_CONF, ConfigDef.Type.STRING, "", ConfigDef.Importance.MEDIUM, LINE_BREAKER_DOC)
             .define(MAX_OUTSTANDING_EVENTS_CONF, ConfigDef.Type.INT, 1000000, ConfigDef.Importance.MEDIUM, MAX_OUTSTANDING_EVENTS_DOC)
             .define(MAX_RETRIES_CONF, ConfigDef.Type.INT, -1, ConfigDef.Importance.MEDIUM, MAX_RETRIES_DOC)
+            .define(HEC_EVENT_FORMATTED_CONF, ConfigDef.Type.BOOLEAN, false, ConfigDef.Importance.LOW, HEC_EVENT_FORMATTED_DOC)
             .define(MAX_BATCH_SIZE_CONF, ConfigDef.Type.INT, 500, ConfigDef.Importance.MEDIUM, MAX_BATCH_SIZE_DOC);
+
     }
 
     /**
@@ -218,6 +225,7 @@ public final class SplunkSinkConnectorConfig extends AbstractConfig {
                 + "maxOutstandingEvents: " + maxOutstandingEvents + ", "
                 + "maxRetries: " + maxRetries + ", "
                 + "useRecordTimestamp: " + useRecordTimestamp + ", "
+                + "hecEventFormatted" + hecEventFormatted + ", "
                 + "trackData: " + trackData;
     }
 

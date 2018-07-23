@@ -22,6 +22,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 
@@ -253,11 +254,39 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
             return event;
         }
 
-        // meta data for /event endpoint is per event basis
+        JsonEvent event = null;
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        if(connectorConfig.hecEventFormatted) {
+            try {
+                event = objectMapper.readValue(record.value().toString(), JsonEvent.class);
+                log.debug("event is of correct format - {}", event.toString());
+            } catch(Exception e) {
+                log.error("event does not follow correct HEC pre-formatted format", record.toString());
+                event = createHECEventNonFormatted(record);
+            }
+        }
+        else {
+            event = createHECEventNonFormatted(record);
+        }
+
+        if (connectorConfig.trackData) {
+            Map<String, String> trackMetas = new HashMap<>();
+            trackMetas.put("kafka_offset", String.valueOf(record.kafkaOffset()));
+            trackMetas.put("kafka_timestamp", String.valueOf(record.timestamp()));
+            trackMetas.put("kafka_topic", record.topic());
+            trackMetas.put("kafka_partition", String.valueOf(record.kafkaPartition()));
+            event.addFields(trackMetas);
+        }
+        event.validate();
+
+        return event;
+    }
+
+    private JsonEvent createHECEventNonFormatted(final SinkRecord record) {
         JsonEvent event = new JsonEvent(record.value(), record);
         if (connectorConfig.useRecordTimestamp && record.timestamp() != null) {
-            // record timestamp is in milliseconds
-            event.setTime(record.timestamp() / 1000.0);
+            event.setTime(record.timestamp() / 1000.0); // record timestamp is in milliseconds
         }
 
         Map<String, String> metas = connectorConfig.topicMetas.get(record.topic());
@@ -267,19 +296,6 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
             event.setSource(metas.get(SplunkSinkConnectorConfig.SOURCE));
             event.addFields(connectorConfig.enrichments);
         }
-
-        if (connectorConfig.trackData) {
-            // for data loss, latency tracking
-            Map<String, String> trackMetas = new HashMap<>();
-            trackMetas.put("kafka_offset", String.valueOf(record.kafkaOffset()));
-            trackMetas.put("kafka_timestamp", String.valueOf(record.timestamp()));
-            trackMetas.put("kafka_topic", record.topic());
-            trackMetas.put("kafka_partition", String.valueOf(record.kafkaPartition()));
-            event.addFields(trackMetas);
-        }
-
-        event.validate();
-
         return event;
     }
 
@@ -302,6 +318,8 @@ public final class SplunkSinkTask extends SinkTask implements PollerCallback {
         final SinkRecord r = record.newRecord("malformed", 0, null, null, null, data, record.timestamp());
         return createHecEventFrom(r);
     }
+
+
 
     // partition records according to topic-partition key
     private Map<TopicPartition, Collection<SinkRecord>> partitionRecords(Collection<SinkRecord> records) {
